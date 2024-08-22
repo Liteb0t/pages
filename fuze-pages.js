@@ -8,16 +8,29 @@ class Pages {
 	constructor(frame, config_args = {}) {
 		let config = { 
 			...{
-				"page_data_source": "within-frame",
+				"page_data_source": "none",
 				"page_modules": [],
-				"image_module_default_url": "none"
+				"image_module_default_url": "https://fuze.page/images/fuze-min.png",
+				"zoom_enabled": true
 			}, ...config_args };
 
 		this.frame_element = document.getElementById(frame);
-		this.page_container_element = this.frame_element.querySelector(".page-container");
 		this.pages = [];
 		this.styles = {};
 		Object.assign(this, config);
+		if (this.page_data_source == "within_frame") {
+			this.page_container_element = this.frame_element.querySelector(".page-container");
+			for (let page_element of this.page_container_element.querySelectorAll(".page")) {
+				// this.pages.push(new Page(page_element));
+				new Page(this, page_element)
+			}
+		}
+		else {
+			this.page_container_element = document.createElement("div");
+			this.page_container_element.classList.add("page-container");
+			this.frame_element.appendChild(this.page_container_element);
+			new Page(this);
+		}
 
 		this.popup_window = {
 			"active": false,
@@ -40,7 +53,7 @@ class Pages {
 		
 		this.frame_element.appendChild(this.popup_window.element);
 
-		["header", "footer", "modules"].forEach(key => {
+		["header", "footer", "modules", "page-container"].forEach(key => {
 			this.styles[key] = document.createElement("style");
 			this.styles[key].type = "text/css";
 			console.log(document.body.appendChild(this.styles[key]));
@@ -55,17 +68,38 @@ class Pages {
 				flex-basis: 50px;
 				border: none;
 			}`);
+		this.styles["page-container"].sheet.insertRule(`
+			.page-container {
+				zoom: 1.0;
+			}`);
 		// console.log(this.styles);
 		this.page_modules = [];
 		for (let page_module of config.page_modules) {
 			this.createPageModule(page_module);
 		}
 		
-		if (this.page_data_source == "within-frame") {
-			for (let page_element of this.page_container_element.querySelectorAll(".page")) {
-				// this.pages.push(new Page(page_element));
-				new Page(this, page_element)
-			}
+		// if (this.page_data_source == "within-frame") {
+		// 	for (let page_element of this.page_container_element.querySelectorAll(".page")) {
+		// 		// this.pages.push(new Page(page_element));
+		// 		new Page(this, page_element)
+		// 	}
+		// }
+		// else {
+		// 	new Page(this);
+		// }
+
+		if (this.zoom_enabled) {
+			this.frame_element.addEventListener("wheel", (event) => {
+				if (event.shiftKey) {
+					event.preventDefault();
+					console.log(event.deltaY);
+					let zoom_amount = 0.0002 * event.deltaY;
+					console.log(zoom_amount);
+					// let zoom_rule = this.styles["page-container"].sheet.cssRules[0].style["zoom"];
+					let current_zoom = Number(this.styles["page-container"].sheet.cssRules[0].style["zoom"]);
+					this.styles["page-container"].sheet.cssRules[0].style["zoom"] = current_zoom + zoom_amount;
+				}
+			});
 		}
 	}
 
@@ -472,6 +506,7 @@ class Pages {
 
 			let start_page_input = document.createElement("input");
 			start_page_input.size = "6";
+			start_page_input.min = "0";
 			start_page_input.type = "number";
 			start_page_input.value = page_module.start_page;
 			start_page_input.id = `${page_module.type}_${page_module.id}_start_page_input`;
@@ -691,14 +726,14 @@ class Page {
 
 		this.header.onclick = (event) => {
 			event.stopPropagation();
-			pages_container.page_container_element.scrollTo(0, this.element.offsetTop);
+			pages_container.page_container_element.scrollTo(0, this.element.offsetTop - pages_container.page_container_element.offsetTop);
 			pages_container.openEditWindow("header", this);
 			
 		}
 
 		this.footer.onclick = (event) => {
 			event.stopPropagation();
-			pages_container.page_container_element.scrollTo(0, this.element.offsetTop + this.element.clientHeight - page_frame_element.clientHeight);
+			pages_container.page_container_element.scrollTo(0, this.element.offsetTop + this.element.clientHeight - (pages_container.frame_element.clientHeight + pages_container.page_container_element.offsetTop));
 			pages_container.openEditWindow("footer", this);
 		}
 
