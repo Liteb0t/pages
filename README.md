@@ -1,27 +1,64 @@
 # Pages
 Javascript library to display HTML as pages. Can serve as a starting point for a proper document editor.
 
-## setup
-You are required to have at least the following in the HTML:
+## Quick start
+Here is the minimum amount of code required to start up Fuze Pages:
 ```html
 <link rel="stylesheet" href="pages-styles.css" />
-
-<div id="fuze-pages" class="pages-frame">
-	<div class="page-container">
-		<div class="page" id="page-1">
-			<div class="header"></div>
-			<div class="main">
-				<div class="content" id="page1content" contenteditable="true">
-			</div>
-			</div>
-			<div class="footer"></div>
-		</div>
-	</div>
-</div>
-<script src="fuze-pages/fuze-pages.js"></script>
-```
-Initialise a Fuze Pages container and provide the ID of the page frame:
-```javascript
+<div id="fuze-pages" class="pages-frame"></div>
+<script src="fuze-pages.js"></script>
+<script>
 const fuze_pages = new Pages("fuze-pages");
+</script>
 ```
-View the example files for more options.
+
+## Config
+Default values:
+```javascript
+{
+	"page_data_source": "none",
+	"page_modules": [],
+	"image_module_default_url": "https://fuze.page/images/fuze-min.png",
+	"zoom_enabled": true
+}
+```
+Example configuration from pages.html:
+```javascript
+const pages_demo = new Pages("page-frame", {
+	"page_modules": [
+		{
+			"location": "header",
+			"title": "Page Number",
+			"type": "page_number",
+			"start_page": 0,
+			"end_page": "end",
+			"first_number": 1,
+			"id": 0,
+			"styles": {
+				"align": "Left",
+				"vertical_margin_number": 10,
+				"vertical_margin_unit": "px",
+				"side_margin_number": 10,
+				"side_margin_unit": "px"
+			}
+		},
+		{
+			"location": "header",
+			"type": "text",
+			"start_page": 0,
+			"end_page": "end",
+			"content": "<h3>Hello World</h3>",
+			"id": 0,
+			"styles": {
+				"align": "Center",
+				"vertical_margin_number": 8,
+				"vertical_margin_unit": "px",
+				"side_margin_number": 10,
+				"side_margin_unit": "px"
+			}
+		}
+	],
+	"image_module_default_url": "https://fuze.page/images/fuze-min.png",
+	"page_data_source": "within_frame"
+});
+```
