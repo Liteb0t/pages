@@ -62,3 +62,7 @@ const pages_demo = new Pages("page-frame", {
 	"page_data_source": "within_frame"
 });
 ```
+## Notes
+- The zoom feature uses <shift> + <mouse scroll>. This overrides horizontal scrolling which is why you might want to disable it.
+- This is NOT a rich text editor, as that is outside the scope of this project. Rather, this is a starting point for developers to make their own WYSIWYG editors.
+- This will be the library used for a WYSIWYG editor I plan to create, JoditWithPages
