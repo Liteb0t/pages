@@ -78,29 +78,22 @@ class Pages {
 			this.createPageModule(page_module);
 		}
 		
-		// if (this.page_data_source == "within-frame") {
-		// 	for (let page_element of this.page_container_element.querySelectorAll(".page")) {
-		// 		// this.pages.push(new Page(page_element));
-		// 		new Page(this, page_element)
-		// 	}
-		// }
-		// else {
-		// 	new Page(this);
-		// }
-
+		// CSS zoom has different behaviour depending on the browser.
+		// Proportions will get distorted, especially after zooming out.
 		if (this.zoom_enabled) {
 			this.frame_element.addEventListener("wheel", (event) => {
 				if (event.shiftKey) {
-					event.preventDefault();
-					console.log(event.deltaY);
-					let zoom_amount = 0.0002 * event.deltaY;
-					console.log(zoom_amount);
+					event.preventDefault(); // Disables the default functionality of shift+scroll for horizontal scrolling.
+					// console.log(event.deltaY);
+					let zoom_amount = -0.0003 * event.deltaY;
+					// console.log(zoom_amount);
 					// let zoom_rule = this.styles["page-container"].sheet.cssRules[0].style["zoom"];
 					let current_zoom = Number(this.styles["page-container"].sheet.cssRules[0].style["zoom"]);
 					this.styles["page-container"].sheet.cssRules[0].style["zoom"] = current_zoom + zoom_amount;
 				}
 			});
 		}
+		this.new_caret_node, this.new_caret_offset;
 	}
 
 	static pixelsToNumber(to_convert) {
@@ -117,25 +110,14 @@ class Pages {
 		return fragment;
 	}
 
-	static getCaretCharacterOffsetWithin(element) {
-		var caretOffset = 0;
-		var doc = element.ownerDocument || element.document;
-		var win = doc.defaultView || doc.parentWindow;
-		var sel;
-		if (typeof win.getSelection != "undefined") {
-			sel = win.getSelection();
-			if (sel.rangeCount > 0) {
-				var range = win.getSelection().getRangeAt(0);
-				var preCaretRange = range.cloneRange();
-				preCaretRange.selectNodeContents(element);
-				preCaretRange.setEnd(range.endContainer, range.endOffset);
-				caretOffset = preCaretRange.toString().length;
-			}
-		}
-		else {
-			console.log("Whoops");
-		}
-		return caretOffset;
+	static setCaretPosition(selection, node, offset) {
+		console.log("node:", node);
+		console.log("offset:", offset);
+		let range = document.createRange();
+		range.setStart(node, offset);
+		range.collapse(true);
+		selection.removeAllRanges();
+		selection.addRange(range);
 	}
 
 	// Rudimentary save as HTML
@@ -335,6 +317,7 @@ class Pages {
 		this.updatePageModule(config);
 	}
 
+	// Generate GUI for the header/footer popup window
 	openEditWindow(header_or_footer, focused_page) {
 		this.popup_window.currently_editing = header_or_footer;
 		this.popup_window.title.textContent = `Configure ${header_or_footer}`;
@@ -395,7 +378,6 @@ class Pages {
 		modules_fieldset_title.textContent = "Modules";
 		modules_fieldset.appendChild(modules_fieldset_title);
 
-		// This code can be simplified somewhat
 		for (let page_module of this.page_modules.filter(m => m.location == header_or_footer)) {
 			let new_row = document.createElement("details");
 			new_row.classList.add("row");
@@ -596,9 +578,6 @@ class Pages {
 						// this.updateModuleStyles(page_module, "height");
 					}
 				});
-				// new_row.appendChild(document.createElement("br"));
-				// new_row.appendChild(height_label);
-				// new_row.appendChild(height_input);
 				table_skeleton[2][0].appendChild(height_label);
 				table_skeleton[2][1].appendChild(height_input);
 				
@@ -620,9 +599,6 @@ class Pages {
 						// this.updateModuleStyles(page_module, "layer");
 					}
 				});
-				// new_row.appendChild(document.createElement("br"));
-				// new_row.appendChild(layer_label);
-				// new_row.appendChild(layer_input);
 				table_skeleton[2][2].appendChild(layer_label);
 				table_skeleton[2][3].appendChild(layer_input);
 
@@ -739,7 +715,7 @@ class Page {
 
 		this.resize_observer = new ResizeObserver(() => {
 			// console.log("carrot: " + getCaretCharacterOffsetWithin(this.content));
-			console.log("THing resized");
+			// console.log("THing resized");
 			if (this.checkIfContentOverflow(this.content)){
 				let selection = getSelection();
 				// console.log(selection);
@@ -752,16 +728,20 @@ class Page {
 					// 	selection_focus_node = selection_focus_node.childNodes[0];
 					// }
 					// if (selection_focus_node && selection_focus_node.nodeType === Node.TEXT_NODE) {
-						console.log(selection_focus_node.parentNode);
-						console.log(selection_focus_node);
-						console.log(selection_focus_offset);
+						// console.log(selection_focus_node.parentNode);
+						// console.log(selection_focus_node);
+						// console.log(selection_focus_offset);
 					// }
 				}
 				else {
 					console.log("No selection or focusNode is null");
 				}
 				// if (this.children.length == 1)
-				let overflows = this.findOverflows(this.content);
+				let overflows = this.findOverflows(this.content, {
+					"selection": selection,
+					"focus_node": selection_focus_node,
+					"focus_offset": selection_focus_offset
+				});
 				console.log(overflows);
 				if (this.content.children.length == 0) {
 					// UNDO();
@@ -779,24 +759,27 @@ class Page {
 					pages_container.pages[this.page_number+1].content.prepend(elements_to_move);
 					pages_container.pages[this.page_number+1].combineElements();
 
-					if (pages_container.pages[this.page_number+1].content.contains(selection_focus_node)) {
-						// console.log("Next page has that seleciton node bro");
+					if (pages_container.new_caret_node) {
+						Pages.setCaretPosition(selection, pages_container.new_caret_node, pages_container.new_caret_offset);
 						pages_container.pages[this.page_number+1].content.focus();
+						console.log("New caret");
+						pages_container.new_caret_node = undefined;
+						pages_container.new_caret_offset = undefined;
+					}
+					else if (selection_focus_node) {
+						// console.log("there is selection_focus_node");
+						Pages.setCaretPosition(selection, selection_focus_node, selection_focus_offset);
 					}
 
-					if (selection_focus_node) {
-						// console.log("there is selection_focus_node");
-						let range = document.createRange();
-						range.setStart(selection_focus_node, selection_focus_offset);
-						range.collapse(true);
-						selection.removeAllRanges();
-						selection.addRange(range);
-					}
+					// if (pages_container.pages[this.page_number+1].content.contains(selection_focus_node)) {
+					// 	console.log("Next page has that seleciton node bro");
+					// 	pages_container.pages[this.page_number+1].content.focus();
+					// }
 				}
 			}
 			else if (this.content.getBoundingClientRect().height < this.old_content_height && this.page_number < pages_container.pages.length-1 && pages_container.pages[this.page_number+1].content.children.length > 0) {
 				let available_space = this.main.clientHeight - this.content.clientHeight;
-				// console.log("Reduced size. Available space: " + available_space);
+				console.log("Reduced size. Available space: " + available_space);
 				let margin_penalty = Pages.pixelsToNumber(window.getComputedStyle(this.content.lastElementChild).marginBottom);
 				let margin_two = Pages.pixelsToNumber(window.getComputedStyle(pages_container.pages[this.page_number+1].content.firstElementChild).marginTop);
 				if (margin_two > margin_penalty) {
@@ -843,11 +826,7 @@ class Page {
 				if ((this.content.children[0] == selection_focus_node || this.content.children[0] == selection_focus_node.parentElement) && selection_focus_offset == 0 && this.page_number > 0) {
 					// console.log("Move cursor to end of previous page");
 					pages_container.pages[this.page_number-1].content.focus();
-					let range = document.createRange();
-					range.setStart(previous_page_last_node, new_caret_index);
-					range.collapse(true);
-					selection.removeAllRanges();
-					selection.addRange(range);
+					Pages.setCaretPosition(selection, previous_page_last_node, new_caret_index);
 					pages_container.pages[pages_container.pages.length-1].deleteIfEmpty();
 				}
 			}
@@ -898,25 +877,25 @@ class Page {
 	}
 
 	// Used to move content to the next page when this page is overflowing.
-	findOverflows(master, can_reiterate = true) {
+	findOverflows(master, caret_selection = undefined) {
 		// these will be moved from the end of page 1
 		// to the top of page 2
 		let overflowing_elements = [];
 		let i = master.children.length;
 		while (this.checkIfContentOverflow(this.content) && i > 0) {
 			let child = master.children[--i];
-			console.log(child);
+			// console.log(child);
 			// overflowing_elements.push(child);
 			master.removeChild(child); // child remains in memory
 			// console.log(child);
 			if (!this.checkIfContentOverflow(this.content)) {
-				console.log("yo");
-				if (can_reiterate && ["tr", "li"].indexOf(child.tagName.toLowerCase()) == -1 && child.children.length > 0) {
+				// console.log("yo");
+				if (["tr", "li"].indexOf(child.tagName.toLowerCase()) == -1 && child.children.length > 0) {
 					master.appendChild(child);
-					let overflown_children = this.findOverflows(child);
-					console.log(overflown_children);
+					let overflown_children = this.findOverflows(child, caret_selection);
+					// console.log(overflown_children);
 					
-					console.log(child.children);
+					// console.log(child.children);
 					let id;
 
 					if (!child.classList.contains("combine")) {
@@ -933,6 +912,22 @@ class Page {
 					let temp_element = child.cloneNode(false);
 					for (let child_element of overflown_children) {
 						temp_element.appendChild(child_element);
+					}
+					if (child == caret_selection.focus_node) {
+						console.log("Hey child is focus node");
+						console.log(caret_selection);
+						console.log(child.innerText);
+						if (caret_selection.focus_offset >= child.innerText.length) {
+							console.log("greater dan");
+							// temp_element.innerText += "wrw";
+							// Pages.setCaretPosition(caret_selection.selection, temp_element, caret_selection.focus_offset);
+							// this.pages_container.pages[this.page_number+1].content.focus();
+							this.pages_container.new_caret_node = temp_element;
+							this.pages_container.new_caret_offset = caret_selection.focus_offset - child.innerText.length;
+						}
+						else {
+							console.log("less dan");
+						}
 					}
 					if (child.children.length == 0) {
 						// console.log("remooving");
@@ -952,8 +947,12 @@ class Page {
 
 			}
 			else {
-				overflowing_elements.push(child);
+				overflowing_elements.splice(0, 0, child);
+				// overflowing_elements.push(child);
 			}
+			// if (caret_selection && child == caret_selection.focus_node) {
+			// 	Pages.setCaretPosition(caret_selection.selection, caret_selection.focus_node, caret_selection.focus_offset);
+			// }
 		}
 		return overflowing_elements
 	}
