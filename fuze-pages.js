@@ -111,8 +111,8 @@ class Pages {
 	}
 
 	static setCaretPosition(selection, node, offset) {
-		console.log("node:", node);
-		console.log("offset:", offset);
+		// console.log("node:", node);
+		// console.log("offset:", offset);
 		let range = document.createRange();
 		range.setStart(node, offset);
 		range.collapse(true);
@@ -733,22 +733,23 @@ class Page {
 						// console.log(selection_focus_offset);
 					// }
 				}
-				else {
-					console.log("No selection or focusNode is null");
-				}
+				// else {
+				// 	console.log("No selection or focusNode is null");
+				// }
 				// if (this.children.length == 1)
 				let overflows = this.findOverflows(this.content, {
 					"selection": selection,
 					"focus_node": selection_focus_node,
 					"focus_offset": selection_focus_offset
 				});
-				console.log(overflows);
+				// console.log(overflows);
 				if (this.content.children.length == 0) {
 					// UNDO();
 					// this.content.appendChild(overflows[0]);
 					// this.content.replaceWith(this.content_before_resize);
 					this.content.innerHTML = this.content_html_before_resize;
 					alert("Couldn't edit content: element overflows page.");
+					document.activeElement.blur();
 				}
 				else if (overflows.length > 0) {
 					if (this.page_number+1 >= pages_container.pages.length) {
@@ -762,13 +763,17 @@ class Page {
 					if (pages_container.new_caret_node) {
 						Pages.setCaretPosition(selection, pages_container.new_caret_node, pages_container.new_caret_offset);
 						pages_container.pages[this.page_number+1].content.focus();
-						console.log("New caret");
+						pages_container.page_container_element.scrollTo(0, pages_container.pages[this.page_number+1].element.offsetTop);
+						// console.log("New caret");
 						pages_container.new_caret_node = undefined;
 						pages_container.new_caret_offset = undefined;
 					}
 					else if (selection_focus_node) {
 						// console.log("there is selection_focus_node");
 						Pages.setCaretPosition(selection, selection_focus_node, selection_focus_offset);
+						if (pages_container.pages[this.page_number+1].content.contains(selection_focus_node)) {
+							pages_container.page_container_element.scrollTo(0, pages_container.pages[this.page_number+1].element.offsetTop);
+						}
 					}
 
 					// if (pages_container.pages[this.page_number+1].content.contains(selection_focus_node)) {
@@ -779,7 +784,7 @@ class Page {
 			}
 			else if (this.content.getBoundingClientRect().height < this.old_content_height && this.page_number < pages_container.pages.length-1 && pages_container.pages[this.page_number+1].content.children.length > 0) {
 				let available_space = this.main.clientHeight - this.content.clientHeight;
-				console.log("Reduced size. Available space: " + available_space);
+				// console.log("Reduced size. Available space: " + available_space);
 				let margin_penalty = Pages.pixelsToNumber(window.getComputedStyle(this.content.lastElementChild).marginBottom);
 				let margin_two = Pages.pixelsToNumber(window.getComputedStyle(pages_container.pages[this.page_number+1].content.firstElementChild).marginTop);
 				if (margin_two > margin_penalty) {
@@ -853,6 +858,20 @@ class Page {
 			else if (Pages.spitting_tags.indexOf(child.tagName.toLowerCase()) > -1) {
 				// console.log(child.tagName);
 				let underflown_children = this.findUnderflows(available_space, child);
+
+				let id;
+
+				if (!child.classList.contains("combine")) {
+					id = 0;
+					while (this.pages_container.page_container_element.querySelectorAll(`${child.tagName}.combineid-${id}`).length > 0) {
+						id++;
+					}
+				}
+				else {
+					// console.log(Array.from(child.classList));
+					id = Array.from(child.classList).filter(c => c.substring(0, 10) == "combineid-")[0].substring(10);
+				}
+
 				if (underflown_children.length == child.children.length) {
 					underflown_elements.pop();
 				}
@@ -863,8 +882,8 @@ class Page {
 				for (let child_element of underflown_children) {
 					temp_element.appendChild(child_element);
 				}
-				child.classList.add("combine");
-				temp_element.classList.add("combine");
+				child.classList.add("combine",`combineid-${id}`);
+				temp_element.classList.add("combine",`combineid-${id}`);
 				// console.log(temp_element);
 				underflown_elements.push(temp_element);
 			}
@@ -914,20 +933,20 @@ class Page {
 						temp_element.appendChild(child_element);
 					}
 					if (child == caret_selection.focus_node) {
-						console.log("Hey child is focus node");
-						console.log(caret_selection);
-						console.log(child.innerText);
+						// console.log("Hey child is focus node");
+						// console.log(caret_selection);
+						// console.log(child.innerText);
 						if (caret_selection.focus_offset >= child.innerText.length) {
-							console.log("greater dan");
+							// console.log("greater dan");
 							// temp_element.innerText += "wrw";
 							// Pages.setCaretPosition(caret_selection.selection, temp_element, caret_selection.focus_offset);
 							// this.pages_container.pages[this.page_number+1].content.focus();
 							this.pages_container.new_caret_node = temp_element;
 							this.pages_container.new_caret_offset = caret_selection.focus_offset - child.innerText.length;
 						}
-						else {
-							console.log("less dan");
-						}
+						// else {
+						// 	console.log("less dan");
+						// }
 					}
 					if (child.children.length == 0) {
 						// console.log("remooving");
@@ -957,7 +976,6 @@ class Page {
 		return overflowing_elements
 	}
 
-
 	combineElements(direction = "down") {
 		let children = this.content.children;
 		if (direction == "up") {
@@ -971,6 +989,18 @@ class Page {
 					children[e].replaceChildren(...children[e].children, ...children[i].children);
 					this.content.removeChild(children[i]);
 				}
+			}
+		}
+		// Clean up unneeded combine classes
+		for (let i = 1; i < children.length - 1; i++) {
+			let previous_child_combineid_class = Array.from(children[i-1].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
+			let this_child_combineid_class = Array.from(children[i].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
+			let next_child_combineid_class = Array.from(children[i+1].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
+			if ((previous_child_combineid_class != this_child_combineid_class || children[i-1].tagName != children[i].tagName) &&
+				this_child_combineid_class != next_child_combineid_class || children[i].tagName != children[i+1].tagName) {
+				// console.log("it werks");
+				children[i].classList.remove(this_child_combineid_class);
+				children[i].classList.remove("combine");
 			}
 		}
 	}
