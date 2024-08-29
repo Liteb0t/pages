@@ -6,15 +6,21 @@ class Pages {
 	static spitting_tags = ["table", "tbody", "ul", "ol"];
 
 	constructor(frame, config_args = {}) {
-		let config = { 
+		let config = {
 			...{
 				"page_data_source": "none",
 				"page_modules": [],
 				"image_module_default_url": "https://fuze.page/images/fuze-min.png",
-				"zoom_enabled": true
+				"zoom_enabled": true,
+				"frame_defined_as_element": false
 			}, ...config_args };
 
-		this.frame_element = document.getElementById(frame);
+		if (config["frame_defined_as_element"]) {
+			this.frame_element = frame;
+		}
+		else {
+			this.frame_element = document.getElementById(frame);
+		}
 		this.pages = [];
 		this.styles = {};
 		Object.assign(this, config);
@@ -50,7 +56,7 @@ class Pages {
 		this.popup_window.content.classList.add("content");
 		this.popup_window.element.appendChild(this.popup_window.title);
 		this.popup_window.element.appendChild(this.popup_window.content);
-		
+
 		this.frame_element.appendChild(this.popup_window.element);
 
 		["header", "footer", "modules", "page-container"].forEach(key => {
@@ -77,7 +83,7 @@ class Pages {
 		for (let page_module of config.page_modules) {
 			this.createPageModule(page_module);
 		}
-		
+
 		// CSS zoom has different behaviour depending on the browser.
 		// Proportions will get distorted, especially after zooming out.
 		if (this.zoom_enabled) {
@@ -94,6 +100,7 @@ class Pages {
 			});
 		}
 		this.new_caret_node, this.new_caret_offset;
+		this.currently_focused_content;
 	}
 
 	static pixelsToNumber(to_convert) {
@@ -193,7 +200,7 @@ class Pages {
 			if (this.pages[i].page_number >= page_module.start_page && (this.pages[i].page_number <= ((page_module.end_page == "end") ? this.pages.length-1 : page_module.end_page))) {
 				within_page_range = true;
 			}
-			
+
 			// console.log(within_page_range);
 			let module_element = page_part.querySelector("." + page_module.type + "_" + page_module.id);
 			if (!module_element && within_page_range) {
@@ -362,7 +369,7 @@ class Pages {
 		// 	<option value="mm">em</option>
 		// 	<option value="px">px</option>
 		// 	`;
-		// 	
+		//
 
 		settings_fieldset.appendChild(height_select_label);
 		settings_fieldset.appendChild(height_select_input);
@@ -504,7 +511,7 @@ class Pages {
 			// new_row.appendChild(document.createElement("br"));
 			table_skeleton[1][0].appendChild(start_page_label);
 			table_skeleton[1][1].appendChild(start_page_input);
-			
+
 			let end_page_input = document.createElement("input");
 			end_page_input.size = "6";
 			// end_page_input.type = "number";
@@ -580,7 +587,7 @@ class Pages {
 				});
 				table_skeleton[2][0].appendChild(height_label);
 				table_skeleton[2][1].appendChild(height_input);
-				
+
 				let layer_input = document.createElement("input");
 				layer_input.size = "6";
 				layer_input.min = "-10";
@@ -642,7 +649,7 @@ class Pages {
 			new_module_select.appendChild(temp_button);
 		});
 		modules_fieldset.appendChild(new_module_select);
-		
+
 		this.popup_window.content.appendChild(settings_fieldset);
 		this.popup_window.content.appendChild(modules_fieldset);
 	}
@@ -696,6 +703,22 @@ class Page {
 		this.old_content_height = this.content.getBoundingClientRect().height;
 		this.content_before_resize = this.content;
 
+		let new_page_event = new CustomEvent("onnewpage", {
+			"detail": this
+		});
+		document.dispatchEvent(new_page_event);
+
+		let content_focus_event = new CustomEvent("onpagecontentfocus", {
+			"detail": this
+		});
+		this.content.onfocus = () => {
+			if (pages_container.currently_focused_content !== this.content) {
+				pages_container.currently_focused_content = this.content;
+				console.log(document.activeElement);
+				document.dispatchEvent(content_focus_event);
+			}
+		}
+
 		this.main.onclick = () => {
 			this.content.focus();
 		}
@@ -704,7 +727,7 @@ class Page {
 			event.stopPropagation();
 			pages_container.page_container_element.scrollTo(0, this.element.offsetTop - pages_container.page_container_element.offsetTop);
 			pages_container.openEditWindow("header", this);
-			
+
 		}
 
 		this.footer.onclick = (event) => {
@@ -913,7 +936,7 @@ class Page {
 					master.appendChild(child);
 					let overflown_children = this.findOverflows(child, caret_selection);
 					// console.log(overflown_children);
-					
+
 					// console.log(child.children);
 					let id;
 
@@ -1013,6 +1036,10 @@ class Page {
 	}
 
 	delete() {
+		let delete_event = new CustomEvent("ondeletepage", {
+			"detail": this
+		});
+		document.dispatchEvent(delete_event);
 		this.pages_container.page_container_element.removeChild(this.pages_container.pages[this.page_number].element);
 		if (this.page_number < this.pages_container.pages.length-1) {
 			for (let i = this.page_number+1; i < this.pages_container.pages.length; i++) {
@@ -1034,5 +1061,6 @@ class Page {
 			return false;
 		}
 	}
-
 }
+
+export default Pages;
