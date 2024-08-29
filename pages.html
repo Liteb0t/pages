@@ -3,59 +3,83 @@
 <head>
 	<title>Pages</title>
 	<link rel="stylesheet" href="./pages-styles.css">
+	<style>
+	body {
+		margin: 0;
+	}
+
+	#flex-container {
+		display: flex;
+		flex-flow: column;
+		height: 100vh;
+	}
+
+	#toolbar {
+		flex: 0 0 auto;
+	}
+
+	#page-frame {
+		flex: 1 1 auto;
+		min-height: 0;
+	}
+	</style>
 </head>
 <body>
+	<div id="flex-container">
+		<div id="toolbar">
+			Some mad tings here yo <button onclick="pages_demo.toggleSinglePageMode()">Toggle single-page mode</button> <button onclick="pages_demo.styles['page-container'].sheet.cssRules[0].style['zoom'] = '1.0';">Reset zoom</button>
+		</div>
 	<div class="page-frame" id="page-frame">
 		<div class="page-container">
-	<div class="page" id="page-1">
-		<div class="header"></div>
-		<div class="main">
-		<div class="content" id="page1content" contenteditable="true">
-			<!--<div><br></div><div><br></div><div><br></div><div><br></div>-->
-			<br><br><br>
-			<h3>my mcdonalds order</h3>
-			<ul>
-				<li>Pan galactic gargle blaster</li>
-				<li>Medium fries</li>
-				<li>Quintuple big mac</li>
-				<li>mixed shawarma Best Kebab wrap</li>
-			</ul>
-			<h3>To do</h3>
-			<ul>
-				<li>Import/Export as HTML/Word</li>
-				<li>Add "page settings" menu</li>
-				<li>Improve performance when there are many pages</li>
-				<li>Woody Woodpecker</li>
-				<li>Buzz Lightyear</li>
-			</ul>
-			<table class="test-table">
-				<tr id="tyrannosaurus-test"><td>Row one</td><td>Still row one</td></tr>
-				<tr><td>Row two</td><td>Still row two</td></tr>
-				<tr><td>Row three</td><td>Still row three</td></tr>
-				<tr><td>Row 4</td><td>Still row 4</td></tr>
-				<tr><td>Row 5</td><td>Still row 5</td></tr>
-				<tr><td>Row 6</td><td>Still row 6</td></tr>
-				<tr><td>Row 7</td><td>Still row 7</td></tr>
-				<tr><td>Row 8</td><td>Still row 8</td></tr>
-				<tr><td>Row 9</td><td>Still row 9</td></tr>
-				<tr><td>Row 10</td><td>Still row 10</td></tr>
-				<tr><td>Row 11</td><td>Still row 11</td></tr>
-			</table>
-			<p>
-				paragraf
-			</p>
-			<p>
-				paragraf
-				<ol>
-					<li>With</li>
-					<li>TIngs</li>
-					<li>Chicken wings</li>
-				</ol>
-			</p>
+		<div class="page" id="page-1">
+			<div class="header"></div>
+			<div class="main">
+			<div class="content" id="page1content" contenteditable="true">
+				<!--<div><br></div><div><br></div><div><br></div><div><br></div>-->
+				<br><br><br>
+				<h3>my mcdonalds order</h3>
+				<ul>
+					<li>Pan galactic gargle blaster</li>
+					<li>Medium fries</li>
+					<li>Quintuple big mac</li>
+					<li>mixed shawarma Best Kebab wrap</li>
+				</ul>
+				<h3>To do</h3>
+				<ul>
+					<li>Import/Export as HTML/Word</li>
+					<li>Add "page settings" menu</li>
+					<li>Improve performance when there are many pages</li>
+					<li>Woody Woodpecker</li>
+					<li>Buzz Lightyear</li>
+				</ul>
+				<table class="test-table">
+					<tr id="tyrannosaurus-test"><td>Row one</td><td>Still row one</td></tr>
+					<tr><td>Row two</td><td>Still row two</td></tr>
+					<tr><td>Row three</td><td>Still row three</td></tr>
+					<tr><td>Row 4</td><td>Still row 4</td></tr>
+					<tr><td>Row 5</td><td>Still row 5</td></tr>
+					<tr><td>Row 6</td><td>Still row 6</td></tr>
+					<tr><td>Row 7</td><td>Still row 7</td></tr>
+					<tr><td>Row 8</td><td>Still row 8</td></tr>
+					<tr><td>Row 9</td><td>Still row 9</td></tr>
+					<tr><td>Row 10</td><td>Still row 10</td></tr>
+					<tr><td>Row 11</td><td>Still row 11</td></tr>
+				</table>
+				<p>
+					paragraf
+				</p>
+				<p>
+					paragraf
+					<ol>
+						<li>With</li>
+						<li>TIngs</li>
+						<li>Chicken wings</li>
+					</ol>
+				</p>
+			</div>
+			</div>
+			<div class="footer"></div>
 		</div>
-		</div>
-		<div class="footer"></div>
-	</div>
 		</div>
 	</div>
 </body>

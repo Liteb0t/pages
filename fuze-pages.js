@@ -12,7 +12,8 @@ class Pages {
 				"page_modules": [],
 				"image_module_default_url": "https://fuze.page/images/fuze-min.png",
 				"zoom_enabled": true,
-				"frame_defined_as_element": false
+				"frame_defined_as_element": false,
+				"single_page_mode": false
 			}, ...config_args };
 
 		if (config["frame_defined_as_element"]) {
@@ -23,6 +24,7 @@ class Pages {
 		}
 		this.pages = [];
 		this.styles = {};
+		this.single_page = new Page(this, "new", 0, true);
 		Object.assign(this, config);
 		if (this.page_data_source == "within_frame") {
 			this.page_container_element = this.frame_element.querySelector(".page-container");
@@ -37,6 +39,7 @@ class Pages {
 			this.frame_element.appendChild(this.page_container_element);
 			new Page(this);
 		}
+		this.page_container_element.appendChild(this.single_page.element);
 
 		this.popup_window = {
 			"active": false,
@@ -59,11 +62,19 @@ class Pages {
 
 		this.frame_element.appendChild(this.popup_window.element);
 
-		["header", "footer", "modules", "page-container"].forEach(key => {
+		["page", "single-page", "header", "footer", "modules", "page-container"].forEach(key => {
 			this.styles[key] = document.createElement("style");
 			this.styles[key].type = "text/css";
 			console.log(document.body.appendChild(this.styles[key]));
 		});
+		this.styles["page"].sheet.insertRule(`
+			.page {
+				display: ${this.single_page_mode ? "none" : "flex"};
+			}`);
+		this.styles["single-page"].sheet.insertRule(`
+			.single-page {
+				display: ${this.single_page_mode ? "block" : "none"};
+			}`);
 		this.styles["header"].sheet.insertRule(`
 			.header {
 				flex-basis: 50px;
@@ -150,6 +161,56 @@ class Pages {
 		link.setAttribute("download", "pages_document.html");
 		link.setAttribute("href", "data:text/plain;charset=utf-8," + encodeURIComponent(data));
 		link.click();
+	}
+
+	getHTMLContent() {
+		let html_content = "";
+		if (this.single_page_mode) {
+			html_content = this.single_page.content.innerHTML;
+		}
+		else {
+			for (let page of this.pages) {
+				html_content += page.content.innerHTML;
+			}
+		}
+		return html_content;
+	}
+
+	setHTMLContent(html_content) {
+		if (this.single_page_mode) {
+			this.single_page.content.innerHTML = html_content;
+		}
+		else {
+			for (let page of this.pages) {
+				page.content.innerHTML = "";
+			}
+			this.pages[0].content.innerHTML = html_content; // We let findOverflows & resizeObserver do the rest
+		}
+	}
+
+	toggleSinglePageMode() {
+		this.single_page_mode ? this.disableSinglePageMode() : this.enableSinglePageMode();
+	}
+
+	enableSinglePageMode() {
+		if (!this.single_page_mode) {
+			let html_content = this.getHTMLContent();
+			this.single_page_mode = true;
+			this.styles["page"].sheet.cssRules[0].style["display"] = "none";
+			this.styles["single-page"].sheet.cssRules[0].style["display"] = "block";
+			this.setHTMLContent(html_content);
+			this.single_page.combineElements();
+		}
+	}
+
+	disableSinglePageMode() {
+		if (this.single_page_mode) {
+			let html_content = this.getHTMLContent();
+			this.single_page_mode = false;
+			this.styles["page"].sheet.cssRules[0].style["display"] = "flex";
+			this.styles["single-page"].sheet.cssRules[0].style["display"] = "none";
+			this.setHTMLContent(html_content);
+		}
 	}
 
 	updateModuleStyles(page_module, style_type_arg = "all") {
@@ -664,7 +725,7 @@ class Pages {
 }
 
 class Page {
-	constructor(pages_container, element = "new", page_number = -1) {
+	constructor(pages_container, element = "new", page_number = -1, is_single_page = false) {
 		var element, header, main, content, footer;
 		if (page_number == -1) {
 			this.page_number = pages_container.pages.length;
@@ -672,22 +733,29 @@ class Page {
 		}
 		if (element === "new") {
 			this.element = document.createElement("div");
-			this.header = document.createElement("div");
 			this.main = document.createElement("div");
 			this.content = document.createElement("div");
-			this.footer = document.createElement("div");
 
-			this.element.classList.add("page");
-			this.header.classList.add("header");
+			if (is_single_page) {
+				this.element.classList.add("single-page");
+			}
+			else {
+				this.header = document.createElement("div");
+				this.footer = document.createElement("div");
+
+				this.element.classList.add("page");
+				this.header.classList.add("header");
+				this.footer.classList.add("footer");
+
+				this.element.appendChild(this.header);
+				this.element.appendChild(this.footer);
+			}
 			this.main.classList.add("main");
 			this.content.classList.add("content");
 			this.content.setAttribute("contenteditable", "true");
-			this.footer.classList.add("footer");
 
-			this.element.appendChild(this.header);
 			this.element.appendChild(this.main);
 			this.main.appendChild(this.content);
-			this.element.appendChild(this.footer);
 		}
 		else {
 			this.element = element;
@@ -698,16 +766,10 @@ class Page {
 		}
 
 		this.pages_container = pages_container;
-		pages_container.pages.push(this);
-		pages_container.page_container_element.appendChild(this.element);
-		this.old_content_height = this.content.getBoundingClientRect().height;
-		this.content_before_resize = this.content;
-
-		let new_page_event = new CustomEvent("onnewpage", {
-			"detail": this
-		});
-		document.dispatchEvent(new_page_event);
-
+		// if (is_single_page) 
+		// 	this.element.style["height"] = "auto";
+		// 	this.header.style["display"] = "none";
+		// 	this.footer.style["display"] = "none";
 		let content_focus_event = new CustomEvent("onpagecontentfocus", {
 			"detail": this
 		});
@@ -723,147 +785,160 @@ class Page {
 			this.content.focus();
 		}
 
-		this.header.onclick = (event) => {
-			event.stopPropagation();
-			pages_container.page_container_element.scrollTo(0, this.element.offsetTop - pages_container.page_container_element.offsetTop);
-			pages_container.openEditWindow("header", this);
+		if (!is_single_page) {
+			this.header.onclick = (event) => {
+				event.stopPropagation();
+				pages_container.page_container_element.scrollTo(0, this.element.offsetTop - pages_container.page_container_element.offsetTop);
+				pages_container.openEditWindow("header", this);
 
-		}
+			}
 
-		this.footer.onclick = (event) => {
-			event.stopPropagation();
-			pages_container.page_container_element.scrollTo(0, this.element.offsetTop + this.element.clientHeight - (pages_container.frame_element.clientHeight + pages_container.page_container_element.offsetTop));
-			pages_container.openEditWindow("footer", this);
-		}
+			this.footer.onclick = (event) => {
+				event.stopPropagation();
+				pages_container.page_container_element.scrollTo(0, this.element.offsetTop + this.element.clientHeight - (pages_container.frame_element.clientHeight + pages_container.page_container_element.offsetTop));
+				pages_container.openEditWindow("footer", this);
+			}
 
-		this.resize_observer = new ResizeObserver(() => {
-			// console.log("carrot: " + getCaretCharacterOffsetWithin(this.content));
-			// console.log("THing resized");
-			if (this.checkIfContentOverflow(this.content)){
-				let selection = getSelection();
-				// console.log(selection);
-				let selection_focus_node, selection_focus_offset;
-				if (selection && selection.focusNode) {
-					selection_focus_node = selection.focusNode;
-					selection_focus_offset = selection.focusOffset;
+			pages_container.pages.push(this);
+			pages_container.page_container_element.appendChild(this.element);
+			this.old_content_height = this.content.getBoundingClientRect().height;
+			this.content_before_resize = this.content;
 
-					// while (selection_focus_node.childNodes[0] && selection_focus_node.nodeType !== Node.TEXT_NODE) {
-					// 	selection_focus_node = selection_focus_node.childNodes[0];
-					// }
-					// if (selection_focus_node && selection_focus_node.nodeType === Node.TEXT_NODE) {
-						// console.log(selection_focus_node.parentNode);
-						// console.log(selection_focus_node);
-						// console.log(selection_focus_offset);
-					// }
-				}
-				// else {
-				// 	console.log("No selection or focusNode is null");
-				// }
-				// if (this.children.length == 1)
-				let overflows = this.findOverflows(this.content, {
-					"selection": selection,
-					"focus_node": selection_focus_node,
-					"focus_offset": selection_focus_offset
-				});
-				// console.log(overflows);
-				if (this.content.children.length == 0) {
-					// UNDO();
-					// this.content.appendChild(overflows[0]);
-					// this.content.replaceWith(this.content_before_resize);
-					this.content.innerHTML = this.content_html_before_resize;
-					alert("Couldn't edit content: element overflows page.");
-					document.activeElement.blur();
-				}
-				else if (overflows.length > 0) {
-					if (this.page_number+1 >= pages_container.pages.length) {
-						new Page(pages_container, "new");
+			let new_page_event = new CustomEvent("onnewpage", {
+				"detail": this
+			});
+			document.dispatchEvent(new_page_event);
+
+			this.resize_observer = new ResizeObserver(() => {
+				// console.log("carrot: " + getCaretCharacterOffsetWithin(this.content));
+				// console.log("THing resized");
+				if (this.checkIfContentOverflow(this.content)){
+					let selection = getSelection();
+					// console.log(selection);
+					let selection_focus_node, selection_focus_offset;
+					if (selection && selection.focusNode) {
+						selection_focus_node = selection.focusNode;
+						selection_focus_offset = selection.focusOffset;
+
+						// while (selection_focus_node.childNodes[0] && selection_focus_node.nodeType !== Node.TEXT_NODE) {
+						// 	selection_focus_node = selection_focus_node.childNodes[0];
+						// }
+						// if (selection_focus_node && selection_focus_node.nodeType === Node.TEXT_NODE) {
+							// console.log(selection_focus_node.parentNode);
+							// console.log(selection_focus_node);
+							// console.log(selection_focus_offset);
+						// }
 					}
-					// let caret_parent_nodes = [...caret_parent.childNodes];
-					let elements_to_move = Pages.listToFragment(overflows);
-					pages_container.pages[this.page_number+1].content.prepend(elements_to_move);
-					pages_container.pages[this.page_number+1].combineElements();
-
-					if (pages_container.new_caret_node) {
-						Pages.setCaretPosition(selection, pages_container.new_caret_node, pages_container.new_caret_offset);
-						pages_container.pages[this.page_number+1].content.focus();
-						pages_container.page_container_element.scrollTo(0, pages_container.pages[this.page_number+1].element.offsetTop);
-						// console.log("New caret");
-						pages_container.new_caret_node = undefined;
-						pages_container.new_caret_offset = undefined;
+					// else {
+					// 	console.log("No selection or focusNode is null");
+					// }
+					// if (this.children.length == 1)
+					let overflows = this.findOverflows(this.content, {
+						"selection": selection,
+						"focus_node": selection_focus_node,
+						"focus_offset": selection_focus_offset
+					});
+					// console.log(overflows);
+					if (this.content.children.length == 0) {
+						// UNDO();
+						// this.content.appendChild(overflows[0]);
+						// this.content.replaceWith(this.content_before_resize);
+						this.content.innerHTML = this.content_html_before_resize;
+						alert("Couldn't edit content: element overflows page.");
+						document.activeElement.blur();
 					}
-					else if (selection_focus_node) {
-						// console.log("there is selection_focus_node");
-						Pages.setCaretPosition(selection, selection_focus_node, selection_focus_offset);
-						if (pages_container.pages[this.page_number+1].content.contains(selection_focus_node)) {
+					else if (overflows.length > 0) {
+						if (this.page_number+1 >= pages_container.pages.length) {
+							new Page(pages_container, "new");
+						}
+						// let caret_parent_nodes = [...caret_parent.childNodes];
+						let elements_to_move = Pages.listToFragment(overflows);
+						pages_container.pages[this.page_number+1].content.prepend(elements_to_move);
+						pages_container.pages[this.page_number+1].combineElements();
+
+						if (pages_container.new_caret_node) {
+							Pages.setCaretPosition(selection, pages_container.new_caret_node, pages_container.new_caret_offset);
+							pages_container.pages[this.page_number+1].content.focus();
 							pages_container.page_container_element.scrollTo(0, pages_container.pages[this.page_number+1].element.offsetTop);
+							// console.log("New caret");
+							pages_container.new_caret_node = undefined;
+							pages_container.new_caret_offset = undefined;
+						}
+						else if (selection_focus_node) {
+							// console.log("there is selection_focus_node");
+							Pages.setCaretPosition(selection, selection_focus_node, selection_focus_offset);
+							if (pages_container.pages[this.page_number+1].content.contains(selection_focus_node)) {
+								pages_container.page_container_element.scrollTo(0, pages_container.pages[this.page_number+1].element.offsetTop);
+							}
+						}
+
+						// if (pages_container.pages[this.page_number+1].content.contains(selection_focus_node)) {
+						// 	console.log("Next page has that seleciton node bro");
+						// 	pages_container.pages[this.page_number+1].content.focus();
+						// }
+					}
+				}
+				else if (this.content.getBoundingClientRect().height < this.old_content_height && this.page_number < pages_container.pages.length-1 && pages_container.pages[this.page_number+1].content.children.length > 0) {
+					let available_space = this.main.clientHeight - this.content.clientHeight;
+					// console.log("Reduced size. Available space: " + available_space);
+					let margin_penalty = Pages.pixelsToNumber(window.getComputedStyle(this.content.lastElementChild).marginBottom);
+					let margin_two = Pages.pixelsToNumber(window.getComputedStyle(pages_container.pages[this.page_number+1].content.firstElementChild).marginTop);
+					if (margin_two > margin_penalty) {
+						margin_penalty = margin_two;
+					}
+
+					// console.log(margin_penalty);
+					available_space -= margin_penalty;
+
+					this.content.append(Pages.listToFragment(pages_container.pages[this.page_number+1].findUnderflows(available_space)));
+					this.combineElements();
+					pages_container.pages[this.page_number+1].deleteIfEmpty();
+				}
+
+				this.old_content_height = this.content.getBoundingClientRect().height;
+				// this.content_before_resize = this.content.cloneNode(true);
+				this.content_html_before_resize = this.content.innerHTML;
+			}).observe(this.content);
+			this.content.addEventListener("keydown", event => {
+				if (event.key == "Backspace" && this.page_number > 0) {
+					let selection = getSelection();
+					// console.log(selection);
+					let selection_focus_node, selection_focus_offset;
+					if (selection && selection.focusNode) {
+						selection_focus_node = selection.focusNode;
+						selection_focus_offset = selection.focusOffset;
+
+						while (selection_focus_node.childNodes[0] && selection_focus_node.nodeType !== Node.TEXT_NODE) {
+							selection_focus_node = selection_focus_node.childNodes[0];
 						}
 					}
-
-					// if (pages_container.pages[this.page_number+1].content.contains(selection_focus_node)) {
-					// 	console.log("Next page has that seleciton node bro");
-					// 	pages_container.pages[this.page_number+1].content.focus();
-					// }
-				}
-			}
-			else if (this.content.getBoundingClientRect().height < this.old_content_height && this.page_number < pages_container.pages.length-1 && pages_container.pages[this.page_number+1].content.children.length > 0) {
-				let available_space = this.main.clientHeight - this.content.clientHeight;
-				// console.log("Reduced size. Available space: " + available_space);
-				let margin_penalty = Pages.pixelsToNumber(window.getComputedStyle(this.content.lastElementChild).marginBottom);
-				let margin_two = Pages.pixelsToNumber(window.getComputedStyle(pages_container.pages[this.page_number+1].content.firstElementChild).marginTop);
-				if (margin_two > margin_penalty) {
-					margin_penalty = margin_two;
-				}
-
-				// console.log(margin_penalty);
-				available_space -= margin_penalty;
-
-				this.content.append(Pages.listToFragment(pages_container.pages[this.page_number+1].findUnderflows(available_space)));
-				this.combineElements();
-				pages_container.pages[this.page_number+1].deleteIfEmpty();
-			}
-
-			this.old_content_height = this.content.getBoundingClientRect().height;
-			// this.content_before_resize = this.content.cloneNode(true);
-			this.content_html_before_resize = this.content.innerHTML;
-		}).observe(this.content);
-		this.content.addEventListener("keydown", event => {
-			if (event.key == "Backspace" && this.page_number > 0) {
-				let selection = getSelection();
-				// console.log(selection);
-				let selection_focus_node, selection_focus_offset;
-				if (selection && selection.focusNode) {
-					selection_focus_node = selection.focusNode;
-					selection_focus_offset = selection.focusOffset;
-
-					while (selection_focus_node.childNodes[0] && selection_focus_node.nodeType !== Node.TEXT_NODE) {
-						selection_focus_node = selection_focus_node.childNodes[0];
+					else {
+						console.log("No selection or focusNode is null");
+					}
+					let previous_page_last_node = pages_container.pages[this.page_number-1].content;
+					let new_caret_index = 0;
+					while (previous_page_last_node.lastChild) {
+						previous_page_last_node = previous_page_last_node.lastChild;
+					}
+					new_caret_index = previous_page_last_node.textContent.length;
+					// console.log(this.content.children[0]);
+					// console.log(selection_focus_node);
+					// console.log(selection_focus_offset);
+					if ((this.content.children[0] == selection_focus_node || this.content.children[0] == selection_focus_node.parentElement) && selection_focus_offset == 0 && this.page_number > 0) {
+						// console.log("Move cursor to end of previous page");
+						pages_container.pages[this.page_number-1].content.focus();
+						Pages.setCaretPosition(selection, previous_page_last_node, new_caret_index);
+						pages_container.pages[pages_container.pages.length-1].deleteIfEmpty();
 					}
 				}
-				else {
-					console.log("No selection or focusNode is null");
+			});
+			// for (let page of pages_container) {
+				for (let page_module of pages_container.page_modules) {
+					pages_container.updatePageModule(page_module);
 				}
-				let previous_page_last_node = pages_container.pages[this.page_number-1].content;
-				let new_caret_index = 0;
-				while (previous_page_last_node.lastChild) {
-					previous_page_last_node = previous_page_last_node.lastChild;
-				}
-				new_caret_index = previous_page_last_node.textContent.length;
-				// console.log(this.content.children[0]);
-				// console.log(selection_focus_node);
-				// console.log(selection_focus_offset);
-				if ((this.content.children[0] == selection_focus_node || this.content.children[0] == selection_focus_node.parentElement) && selection_focus_offset == 0 && this.page_number > 0) {
-					// console.log("Move cursor to end of previous page");
-					pages_container.pages[this.page_number-1].content.focus();
-					Pages.setCaretPosition(selection, previous_page_last_node, new_caret_index);
-					pages_container.pages[pages_container.pages.length-1].deleteIfEmpty();
-				}
-			}
-		});
-		// for (let page of pages_container) {
-			for (let page_module of pages_container.page_modules) {
-				pages_container.updatePageModule(page_module);
-			}
-		// }
+			// }
+		}
+		return this;
 	}
 
 	// Starting from the top, get as many elements that can fit into ...
@@ -1063,4 +1138,4 @@ class Page {
 	}
 }
 
-export default Pages;
+// export default Pages;
