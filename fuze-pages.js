@@ -746,16 +746,20 @@ class Page {
 				this.element.classList.add("page");
 				this.header.classList.add("header");
 				this.footer.classList.add("footer");
-
-				this.element.appendChild(this.header);
-				this.element.appendChild(this.footer);
 			}
 			this.main.classList.add("main");
 			this.content.classList.add("content");
 			this.content.setAttribute("contenteditable", "true");
 
+
+			if (!is_single_page) {
+				this.element.appendChild(this.header);
+			}
 			this.element.appendChild(this.main);
 			this.main.appendChild(this.content);
+			if (!is_single_page) {
+				this.element.appendChild(this.footer);
+			}
 		}
 		else {
 			this.element = element;
@@ -770,6 +774,11 @@ class Page {
 		// 	this.element.style["height"] = "auto";
 		// 	this.header.style["display"] = "none";
 		// 	this.footer.style["display"] = "none";
+		let new_page_event = new CustomEvent("onnewpage", {
+			"detail": this
+		});
+		document.dispatchEvent(new_page_event);
+
 		let content_focus_event = new CustomEvent("onpagecontentfocus", {
 			"detail": this
 		});
@@ -803,11 +812,6 @@ class Page {
 			pages_container.page_container_element.appendChild(this.element);
 			this.old_content_height = this.content.getBoundingClientRect().height;
 			this.content_before_resize = this.content;
-
-			let new_page_event = new CustomEvent("onnewpage", {
-				"detail": this
-			});
-			document.dispatchEvent(new_page_event);
 
 			this.resize_observer = new ResizeObserver(() => {
 				// console.log("carrot: " + getCaretCharacterOffsetWithin(this.content));
