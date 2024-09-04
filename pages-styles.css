@@ -1,4 +1,4 @@
-.page-frame {
+.pages-frame {
 	background-color: #eee;
 	border: 3px groove #888;
 	box-sizing: border-box;
@@ -62,7 +62,7 @@
 	.content {
 		display: flow-root;
 		padding: 0 10mm 0 10mm;
-		word-break: break-all;
+		word-wrap: break-word;
 	}
 	.content:focus {
 		outline: 0px solid transparent;

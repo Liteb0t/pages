@@ -777,7 +777,6 @@ class Page {
 		let new_page_event = new CustomEvent("onnewpage", {
 			"detail": this
 		});
-		document.dispatchEvent(new_page_event);
 
 		let content_focus_event = new CustomEvent("onpagecontentfocus", {
 			"detail": this
@@ -883,20 +882,47 @@ class Page {
 					}
 				}
 				else if (this.content.getBoundingClientRect().height < this.old_content_height && this.page_number < pages_container.pages.length-1 && pages_container.pages[this.page_number+1].content.children.length > 0) {
-					let available_space = this.main.clientHeight - this.content.clientHeight;
-					// console.log("Reduced size. Available space: " + available_space);
-					let margin_penalty = Pages.pixelsToNumber(window.getComputedStyle(this.content.lastElementChild).marginBottom);
-					let margin_two = Pages.pixelsToNumber(window.getComputedStyle(pages_container.pages[this.page_number+1].content.firstElementChild).marginTop);
-					if (margin_two > margin_penalty) {
-						margin_penalty = margin_two;
+					let selection = getSelection();
+					// console.log(selection);
+					let selection_focus_node, selection_focus_offset;
+					if (selection && selection.focusNode) {
+						selection_focus_node = selection.focusNode;
+						selection_focus_offset = selection.focusOffset;
 					}
+					// let available_space = this.main.clientHeight - this.content.clientHeight;
+					// let margin_penalty = Pages.pixelsToNumber(window.getComputedStyle(this.content.lastElementChild).marginBottom);
+					// let margin_two = Pages.pixelsToNumber(window.getComputedStyle(pages_container.pages[this.page_number+1].content.firstElementChild).marginTop);
+					// if (margin_two > margin_penalty) {
+					// 	margin_penalty = margin_two;
+					// }
 
-					// console.log(margin_penalty);
-					available_space -= margin_penalty;
+					// // console.log(margin_penalty);
+					// available_space -= margin_penalty;
 
-					this.content.append(Pages.listToFragment(pages_container.pages[this.page_number+1].findUnderflows(available_space)));
+					// this.content.append(Pages.listToFragment(pages_container.pages[this.page_number].findUnderflows(available_space)));
+					this.findUnderflows(pages_container.pages[this.page_number+1].content, this.content, {
+						"selection": selection,
+						"focus_node": selection_focus_node,
+						"focus_offset": selection_focus_offset
+					});
 					this.combineElements();
 					pages_container.pages[this.page_number+1].deleteIfEmpty();
+
+					// if (pages_container.new_caret_node) {
+					// 	Pages.setCaretPosition(selection, pages_container.new_caret_node, pages_container.new_caret_offset);
+					// 	pages_container.pages[this.page_number+1].content.focus();
+					// 	pages_container.page_container_element.scrollTo(0, pages_container.pages[this.page_number+1].element.offsetTop);
+					// 	// console.log("New caret");
+					// 	pages_container.new_caret_node = undefined;
+					// 	pages_container.new_caret_offset = undefined;
+					// }
+					// else if (selection_focus_node) {
+					// 	// console.log("there is selection_focus_node");
+					// 	Pages.setCaretPosition(selection, selection_focus_node, selection_focus_offset);
+					// 	if (pages_container.pages[this.page_number+1].content.contains(selection_focus_node)) {
+					// 		pages_container.page_container_element.scrollTo(0, pages_container.pages[this.page_number+1].element.offsetTop);
+					// 	}
+					// }
 				}
 
 				this.old_content_height = this.content.getBoundingClientRect().height;
@@ -942,77 +968,29 @@ class Page {
 				}
 			// }
 		}
+		document.dispatchEvent(new_page_event);
 		return this;
 	}
 
-	// Starting from the top, get as many elements that can fit into ...
-	// ... available_space, measured as pixels on the Y axis.
-	// Used for moving elements up when the user deletes something.
-	// If there are bugs, change this to be more like findOverflows
-	// ie. move elements up until previous page checkIfContentOverflow(content) is triggered.
-	findUnderflows(available_space, master = this.content) {
-		let underflown_elements = [];
-		for (let child of master.children) {
-			let rect = child.getBoundingClientRect()
-			if (rect.top + rect.height <= available_space + this.content.getBoundingClientRect().top) {
-				underflown_elements.push(child);
-			}
-			else if (Pages.spitting_tags.indexOf(child.tagName.toLowerCase()) > -1) {
-				// console.log(child.tagName);
-				let underflown_children = this.findUnderflows(available_space, child);
-
-				let id;
-
-				if (!child.classList.contains("combine")) {
-					id = 0;
-					while (this.pages_container.page_container_element.querySelectorAll(`${child.tagName}.combineid-${id}`).length > 0) {
-						id++;
-					}
-				}
-				else {
-					// console.log(Array.from(child.classList));
-					id = Array.from(child.classList).filter(c => c.substring(0, 10) == "combineid-")[0].substring(10);
-				}
-
-				if (underflown_children.length == child.children.length) {
-					underflown_elements.pop();
-				}
-				else if (underflown_children.length == 0) {
-					break;
-				}
-				let temp_element = child.cloneNode(false);
-				for (let child_element of underflown_children) {
-					temp_element.appendChild(child_element);
-				}
-				child.classList.add("combine",`combineid-${id}`);
-				temp_element.classList.add("combine",`combineid-${id}`);
-				// console.log(temp_element);
-				underflown_elements.push(temp_element);
-			}
-			else {
-				// console.log(child.tagName);
-				break;
-			}
-		}
-		return underflown_elements;
-	}
-
-	// Used to move content to the next page when this page is overflowing.
-	findOverflows(master, caret_selection = undefined) {
+	// this = previous page (where content is moved to)
+	findUnderflows(source_master, receiving_master, caret_selection = undefined) {
+		console.log("findUnderflows triggered");
 		// these will be moved from the end of page 1
 		// to the top of page 2
 		let overflowing_elements = [];
-		let i = master.children.length;
-		while (this.checkIfContentOverflow(this.content) && i > 0) {
-			let child = master.children[--i];
+		let i = 0;
+		let child_is_selection_node = false;
+		while (/*!this.checkIfContentOverflow(this.content) &&*/ i < source_master.childNodes.length) {
+			let child = source_master.childNodes[i];
+			console.log(child);
+			receiving_master.appendChild(child);
+
+			// master.removeChild(child); // child remains in memory
 			// console.log(child);
-			// overflowing_elements.push(child);
-			master.removeChild(child); // child remains in memory
-			// console.log(child);
-			if (!this.checkIfContentOverflow(this.content)) {
-				// console.log("yo");
-				if (["tr", "li"].indexOf(child.tagName.toLowerCase()) == -1 && child.children.length > 0) {
-					master.appendChild(child);
+			if (this.checkIfContentOverflow(this.content)) {
+				// if splittable
+				if (child.childNodes.length > 0 && ["tr", "li"].indexOf(child.tagName.toLowerCase()) == -1) {
+					// source_master.appendChild(child);
 					let overflown_children = this.findOverflows(child, caret_selection);
 					// console.log(overflown_children);
 
@@ -1035,7 +1013,76 @@ class Page {
 						temp_element.appendChild(child_element);
 					}
 					if (child == caret_selection.focus_node) {
-						// console.log("Hey child is focus node");
+						if (caret_selection.focus_offset >= child.innerText.length) {
+							this.pages_container.new_caret_node = temp_element;
+							this.pages_container.new_caret_offset = caret_selection.focus_offset - child.innerText.length;
+						}
+					}
+					if (child.childNodes.length == 0) {
+						// console.log("remooving");
+						receiving_master.removeChild(child);
+					}
+					else {
+						child.classList.add("combine",`combineid-${id}`);
+						// master.appendChild(child);
+					}
+					temp_element.classList.add("combine",`combineid-${id}`);
+					overflowing_elements.splice(0, 0, temp_element);
+					// overflowing_elements.push(temp_element);
+					console.log(overflowing_elements);
+					console.log(overflown_children);
+					console.log(temp_element);
+					
+					this.pages_container.pages[this.page_number+1].content.prepend(temp_element);
+
+					break;
+				}
+				else {
+					// put the child back
+					source_master.prepend(child);
+					// source_master.splice(0, 0, child);
+					break;
+				}
+			}
+		}
+		return overflowing_elements
+	}
+
+	// Used to move content to the next page when this page is overflowing.
+	findOverflows(master, caret_selection = undefined) {
+		console.log("findOverflows triggered");
+		// these will be moved from the end of page 1
+		// to the top of page 2
+		let overflowing_elements = [];
+		let i = master.childNodes.length;
+		while (this.checkIfContentOverflow(this.content) && i > 0) {
+			let child = master.childNodes[--i];
+			// console.log(child);
+			// overflowing_elements.push(child);
+			master.removeChild(child); // child remains in memory
+			// console.log(child);
+			if (!this.checkIfContentOverflow(this.content)) {
+				// console.log("yo");
+				if (child.childNodes.length > 0 && ["tr", "li"].indexOf(child.tagName.toLowerCase()) == -1) {
+					master.appendChild(child);
+					console.log(child.childNodes);
+					console.log(child.children);
+					let overflown_children = this.findOverflows(child, caret_selection);
+					console.log(overflown_children);
+
+					console.log(child.childNodes);
+					console.log(child.children);
+
+					if (overflown_children.length == child.childNodes.length) {
+						console.log(child);
+						console.log("No need to split");
+					}
+					let temp_element = child.cloneNode(false);
+					for (let child_element of overflown_children) {
+						temp_element.appendChild(child_element);
+					}
+					if (caret_selection && child == caret_selection.focus_node) {
+						console.log("Hey child is focus node");
 						// console.log(caret_selection);
 						// console.log(child.innerText);
 						if (caret_selection.focus_offset >= child.innerText.length) {
@@ -1050,15 +1097,28 @@ class Page {
 						// 	console.log("less dan");
 						// }
 					}
-					if (child.children.length == 0) {
+					if (child.childNodes.length == 0) {
 						// console.log("remooving");
 						master.removeChild(child);
 					}
 					else {
+						let id;
+
+						if (!child.classList.contains("combine")) {
+							id = 0;
+							while (this.pages_container.page_container_element.querySelectorAll(`${child.tagName}.combineid-${id}`).length > 0) {
+								id++;
+							}
+						}
+						else {
+							// console.log(Array.from(child.classList));
+							console.log("child alreadycontains combine broh");
+							id = Array.from(child.classList).filter(c => c.substring(0, 10) == "combineid-")[0].substring(10);
+						}
 						child.classList.add("combine",`combineid-${id}`);
 						// master.appendChild(child);
+						temp_element.classList.add("combine",`combineid-${id}`);
 					}
-					temp_element.classList.add("combine",`combineid-${id}`);
 					overflowing_elements.splice(0, 0, temp_element);
 					// overflowing_elements.push(temp_element);
 				}
@@ -1094,7 +1154,14 @@ class Page {
 			}
 		}
 		// Clean up unneeded combine classes
+		this.cleanUpCombineClasses(children);
+	}
+
+	cleanUpCombineClasses(children) {
 		for (let i = 1; i < children.length - 1; i++) {
+			// if (children[i].children.length > 0 && ["tr", "li"].indexOf(children[i].tagName.toLowerCase()) == -1) {
+			// 	this.cleanUpCombineClasses(children[i].children);
+			// }
 			let previous_child_combineid_class = Array.from(children[i-1].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
 			let this_child_combineid_class = Array.from(children[i].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
 			let next_child_combineid_class = Array.from(children[i+1].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
