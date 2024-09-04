@@ -3,8 +3,6 @@ let page_1 = document.getElementById("page-1"); // for testing
 let test_table = document.querySelector(".test-table");
 
 class Pages {
-	static spitting_tags = ["table", "tbody", "ul", "ol"];
-
 	constructor(frame, config_args = {}) {
 		let config = {
 			...{
@@ -770,10 +768,6 @@ class Page {
 		}
 
 		this.pages_container = pages_container;
-		// if (is_single_page) 
-		// 	this.element.style["height"] = "auto";
-		// 	this.header.style["display"] = "none";
-		// 	this.footer.style["display"] = "none";
 		let new_page_event = new CustomEvent("onnewpage", {
 			"detail": this
 		});
@@ -908,21 +902,6 @@ class Page {
 					this.combineElements();
 					pages_container.pages[this.page_number+1].deleteIfEmpty();
 
-					// if (pages_container.new_caret_node) {
-					// 	Pages.setCaretPosition(selection, pages_container.new_caret_node, pages_container.new_caret_offset);
-					// 	pages_container.pages[this.page_number+1].content.focus();
-					// 	pages_container.page_container_element.scrollTo(0, pages_container.pages[this.page_number+1].element.offsetTop);
-					// 	// console.log("New caret");
-					// 	pages_container.new_caret_node = undefined;
-					// 	pages_container.new_caret_offset = undefined;
-					// }
-					// else if (selection_focus_node) {
-					// 	// console.log("there is selection_focus_node");
-					// 	Pages.setCaretPosition(selection, selection_focus_node, selection_focus_offset);
-					// 	if (pages_container.pages[this.page_number+1].content.contains(selection_focus_node)) {
-					// 		pages_container.page_container_element.scrollTo(0, pages_container.pages[this.page_number+1].element.offsetTop);
-					// 	}
-					// }
 				}
 
 				this.old_content_height = this.content.getBoundingClientRect().height;
@@ -1065,18 +1044,18 @@ class Page {
 				// console.log("yo");
 				if (child.childNodes.length > 0 && ["tr", "li"].indexOf(child.tagName.toLowerCase()) == -1) {
 					master.appendChild(child);
-					console.log(child.childNodes);
-					console.log(child.children);
+					// console.log(child.childNodes);
+					// console.log(child.children);
 					let overflown_children = this.findOverflows(child, caret_selection);
-					console.log(overflown_children);
+					// console.log(overflown_children);
 
-					console.log(child.childNodes);
-					console.log(child.children);
+					// console.log(child.childNodes);
+					// console.log(child.children);
 
-					if (overflown_children.length == child.childNodes.length) {
-						console.log(child);
-						console.log("No need to split");
-					}
+					// if (overflown_children.length == child.childNodes.length) {
+					// 	console.log(child);
+					// 	console.log("No need to split");
+					// }
 					let temp_element = child.cloneNode(false);
 					for (let child_element of overflown_children) {
 						temp_element.appendChild(child_element);
@@ -1138,38 +1117,56 @@ class Page {
 		return overflowing_elements
 	}
 
-	combineElements(direction = "down") {
-		let children = this.content.children;
-		if (direction == "up") {
-			children.reverse();
-		}
-		let e = 0;
-		for (let e = 0; e < children.length - 1; e++) {
-			if (children[e].classList.contains("combine")) {
-				let i = e + 1;
-				while (i < children.length && (children[i].classList.contains("combine") && children[e].tagName == children[i].tagName) && Array.from(children[e].classList).filter(c => c.substring(0, 10) == "combineid-")[0].substring(10) == Array.from(children[i].classList).filter(c => c.substring(0, 10) == "combineid-")[0].substring(10)) {
-					children[e].replaceChildren(...children[e].children, ...children[i].children);
-					this.content.removeChild(children[i]);
+	combineElements(parent_element = this.content) {
+		let children = parent_element.children;
+		// if (direction == "up") {
+		// 	children.reverse();
+		// }
+		if (children.length > 1) {
+			let e = 0;
+			for (let e = 0; e < children.length - 1; e++) {
+				if (children[e].classList.contains("combine")) {
+					let i = e + 1;
+					while (i < children.length && (children[i].classList.contains("combine") && children[e].tagName == children[i].tagName) && Array.from(children[e].classList).filter(c => c.substring(0, 10) == "combineid-")[0].substring(10) == Array.from(children[i].classList).filter(c => c.substring(0, 10) == "combineid-")[0].substring(10)) {
+						children[e].replaceChildren(...children[e].children, ...children[i].children);
+						parent_element.removeChild(children[i]);
+					}
+					if (children[e].childNodes.length > 1 && ["tr", "li"].indexOf(children[e].tagName.toLowerCase()) == -1) {
+						this.combineElements(children[e]);
+					}
 				}
 			}
 		}
-		// Clean up unneeded combine classes
-		this.cleanUpCombineClasses(children);
+		if (parent_element === this.content) {
+			this.cleanUpCombineClasses(children);
+		}
 	}
 
-	cleanUpCombineClasses(children) {
-		for (let i = 1; i < children.length - 1; i++) {
-			// if (children[i].children.length > 0 && ["tr", "li"].indexOf(children[i].tagName.toLowerCase()) == -1) {
-			// 	this.cleanUpCombineClasses(children[i].children);
-			// }
-			let previous_child_combineid_class = Array.from(children[i-1].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
-			let this_child_combineid_class = Array.from(children[i].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
-			let next_child_combineid_class = Array.from(children[i+1].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
-			if ((previous_child_combineid_class != this_child_combineid_class || children[i-1].tagName != children[i].tagName) &&
-				this_child_combineid_class != next_child_combineid_class || children[i].tagName != children[i+1].tagName) {
-				// console.log("it werks");
-				children[i].classList.remove(this_child_combineid_class);
-				children[i].classList.remove("combine");
+	cleanUpCombineClasses(children, parent_has_combine_class = true) {
+		if (parent_has_combine_class) {
+			for (let i = 1; i < children.length - 1; i++) {
+				// if (children[i].children.length > 0 && ["tr", "li"].indexOf(children[i].tagName.toLowerCase()) == -1) {
+				// 	this.cleanUpCombineClasses(children[i].children);
+				// }
+				let previous_child_combineid_class = Array.from(children[i-1].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
+				let this_child_combineid_class = Array.from(children[i].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
+				let next_child_combineid_class = Array.from(children[i+1].classList).filter(c => c.substring(0, 10) == "combineid-")[0];
+				if ((previous_child_combineid_class != this_child_combineid_class || children[i-1].tagName != children[i].tagName) &&
+					this_child_combineid_class != next_child_combineid_class || children[i].tagName != children[i+1].tagName) {
+					// console.log("it werks");
+					children[i].classList.remove(this_child_combineid_class);
+					children[i].classList.remove("combine");
+					this.cleanUpCombineClasses(children[i].children, false);
+				}
+			}
+		}
+		else {
+			for (let child of children) {
+				if (child.classList.contains("combine")) {
+					let this_child_combineid_class = Array.from(child.classList).filter(c => c.substring(0, 10) == "combineid-")[0];
+					child.classList.remove(this_child_combineid_class);
+					child.classList.remove("combine");
+				}
 			}
 		}
 	}
