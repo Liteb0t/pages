@@ -11,7 +11,8 @@ class Pages {
 				"image_module_default_url": "https://fuze.page/images/fuze-min.png",
 				"zoom_enabled": true,
 				"frame_defined_as_element": false,
-				"single_page_mode": false
+				"single_page_mode": false,
+				"minimum_zoom": 0.4
 			}, ...config_args };
 
 		if (config["frame_defined_as_element"]) {
@@ -22,13 +23,17 @@ class Pages {
 		}
 		this.pages = [];
 		this.styles = {};
-		this.single_page = new Page(this, "new", 0, true);
+		this.single_page = new Page(this, {
+			"element": "new",
+			"page_number": 0,
+			"is_single_page": true
+		});
 		Object.assign(this, config);
 		if (this.page_data_source == "within_frame") {
 			this.page_container_element = this.frame_element.querySelector(".page-container");
 			for (let page_element of this.page_container_element.querySelectorAll(".page")) {
 				// this.pages.push(new Page(page_element));
-				new Page(this, page_element)
+				new Page(this, {"element": page_element})
 			}
 		}
 		else {
@@ -63,7 +68,7 @@ class Pages {
 		["page", "single-page", "header", "footer", "modules", "page-container"].forEach(key => {
 			this.styles[key] = document.createElement("style");
 			this.styles[key].type = "text/css";
-			console.log(document.body.appendChild(this.styles[key]));
+			console.log(document.head.appendChild(this.styles[key]));
 		});
 		this.styles["page"].sheet.insertRule(`
 			.page {
@@ -94,7 +99,7 @@ class Pages {
 		}
 
 		// CSS zoom has different behaviour depending on the browser.
-		// Proportions will get distorted, especially after zooming out.
+		// Proportions will get distorted, especially after zooming out, which is why minimum zoom is 0.4 by default.
 		if (this.zoom_enabled) {
 			this.frame_element.addEventListener("wheel", (event) => {
 				if (event.shiftKey) {
@@ -104,12 +109,23 @@ class Pages {
 					// console.log(zoom_amount);
 					// let zoom_rule = this.styles["page-container"].sheet.cssRules[0].style["zoom"];
 					let current_zoom = Number(this.styles["page-container"].sheet.cssRules[0].style["zoom"]);
-					this.styles["page-container"].sheet.cssRules[0].style["zoom"] = current_zoom + zoom_amount;
+					if (current_zoom + zoom_amount > this.minimum_zoom) {
+						this.styles["page-container"].sheet.cssRules[0].style["zoom"] = current_zoom + zoom_amount;
+					}
+					else {
+						this.styles["page-container"].sheet.cssRules[0].style["zoom"] = this.minimum_zoom;
+					}
 				}
 			});
 		}
 		this.new_caret_node, this.new_caret_offset;
 		this.currently_focused_content;
+	}
+
+	static {
+		Pages.page_break_element = document.createElement("div");
+		Pages.page_break_element.classList.add("page-break");
+		Pages.page_break_element.contentEditable = "false";
 	}
 
 	static pixelsToNumber(to_convert) {
@@ -191,24 +207,69 @@ class Pages {
 	}
 
 	enableSinglePageMode() {
-		if (!this.single_page_mode) {
-			let html_content = this.getHTMLContent();
-			this.single_page_mode = true;
-			this.styles["page"].sheet.cssRules[0].style["display"] = "none";
-			this.styles["single-page"].sheet.cssRules[0].style["display"] = "block";
-			this.setHTMLContent(html_content);
-			this.single_page.combineElements();
+		if (this.single_page_mode) {
+			return;
+		}
+		// let html_content = this.getHTMLContent();
+		this.single_page_mode = true;
+		// this.setHTMLContent(html_content);
+		let html_elements = [];
+		for (let page of this.pages) {
+			if (page.is_anchored) {
+				html_elements.push(Pages.page_break_element.cloneNode(true));
+			}
+			for (let element of page.content.children) {
+				html_elements.push(element);
+			}
+		}
+		// this.single_page.content.innerHTML = "";
+		this.single_page.content.append(...html_elements);
+		this.single_page.combineElements();
+		this.styles["page"].sheet.cssRules[0].style["display"] = "none";
+		this.styles["single-page"].sheet.cssRules[0].style["display"] = "block";
+		// this.pages.splice(1, this.pages.length-1);
+		let i = 1;
+		while (i < this.pages.length) {
+			this.pages[i].delete();
+		}
+		for (let element of this.page_container_element.children) {
+			if (element.outerHTML == Pages.page_break_element.outerHTML) {
+				console.log("is equal node");
+				element.remove();
+			}
 		}
 	}
 
 	disableSinglePageMode() {
-		if (this.single_page_mode) {
-			let html_content = this.getHTMLContent();
-			this.single_page_mode = false;
-			this.styles["page"].sheet.cssRules[0].style["display"] = "flex";
-			this.styles["single-page"].sheet.cssRules[0].style["display"] = "none";
-			this.setHTMLContent(html_content);
+		if (!this.single_page_mode) {
+			return;
 		}
+		// let html_content = this.getHTMLContent();
+		this.single_page_mode = false;
+		// this.setHTMLContent(html_content);
+		let page = 0;
+		// for (let element of this.single_page.content.children) {
+		while (this.single_page.content.children.length > 0) {
+			let element = this.single_page.content.children[0];
+			// if (this.pages.length < page + 1) {
+			// 	new Page(this);
+			// }
+			// console.log(element);
+			// console.log(Pages.page_break_element);
+			if (element.outerHTML == Pages.page_break_element.outerHTML) {
+				console.log("page break");
+				page++;
+
+				this.page_container_element.appendChild(element);
+				new Page(this, { "is_anchored": true });
+				// this.single_page.content.removeChild(element);
+			}
+			else {
+				this.pages[page].content.appendChild(element);
+			}
+		}
+		this.styles["page"].sheet.cssRules[0].style["display"] = "flex";
+		this.styles["single-page"].sheet.cssRules[0].style["display"] = "none";
 	}
 
 	updateModuleStyles(page_module, style_type_arg = "all") {
@@ -723,18 +784,23 @@ class Pages {
 }
 
 class Page {
-	constructor(pages_container, element = "new", page_number = -1, is_single_page = false) {
-		var element, header, main, content, footer;
-		if (page_number == -1) {
-			this.page_number = pages_container.pages.length;
-			// console.log(pages_container.pages);
-		}
-		if (element === "new") {
+	constructor(pages_container, config_args = {}) {
+		let config = {
+			...{
+				"element": "new",
+				"page_number": -1,
+				"is_single_page": false,
+				"is_anchored": false
+			},
+			...config_args };
+		Object.assign(this, config);
+		var header, main, content, footer;
+		if (config.element === "new") {
 			this.element = document.createElement("div");
 			this.main = document.createElement("div");
 			this.content = document.createElement("div");
 
-			if (is_single_page) {
+			if (this.is_single_page) {
 				this.element.classList.add("single-page");
 			}
 			else {
@@ -749,18 +815,17 @@ class Page {
 			this.content.classList.add("content");
 			this.content.setAttribute("contenteditable", "true");
 
-
-			if (!is_single_page) {
+			if (!config.is_single_page) {
 				this.element.appendChild(this.header);
 			}
 			this.element.appendChild(this.main);
 			this.main.appendChild(this.content);
-			if (!is_single_page) {
+			if (!config.is_single_page) {
 				this.element.appendChild(this.footer);
 			}
 		}
 		else {
-			this.element = element;
+			this.element = config.element;
 			this.header = this.element.querySelector(".header");
 			this.main = this.element.querySelector(".main");
 			this.content = this.element.querySelector(".content");
@@ -778,7 +843,7 @@ class Page {
 		this.content.onfocus = () => {
 			if (pages_container.currently_focused_content !== this.content) {
 				pages_container.currently_focused_content = this.content;
-				console.log(document.activeElement);
+				// console.log(document.activeElement);
 				document.dispatchEvent(content_focus_event);
 			}
 		}
@@ -787,12 +852,11 @@ class Page {
 			this.content.focus();
 		}
 
-		if (!is_single_page) {
+		if (!config.is_single_page) {
 			this.header.onclick = (event) => {
 				event.stopPropagation();
 				pages_container.page_container_element.scrollTo(0, this.element.offsetTop - pages_container.page_container_element.offsetTop);
 				pages_container.openEditWindow("header", this);
-
 			}
 
 			this.footer.onclick = (event) => {
@@ -801,15 +865,31 @@ class Page {
 				pages_container.openEditWindow("footer", this);
 			}
 
-			pages_container.pages.push(this);
-			pages_container.page_container_element.appendChild(this.element);
+			if (this.page_number == -1) {
+				this.page_number = pages_container.pages.length;
+				// console.log(pages_container.pages);
+				pages_container.pages.push(this);
+				pages_container.page_container_element.appendChild(this.element);
+			}
+			else {
+				// console.log("sploicing");
+				// console.log(this.page_number);
+				pages_container.pages.splice(this.page_number, 0, this);
+				for (let i=this.page_number+1; i<pages_container.pages.length; i++) {
+					pages_container.pages[i].page_number++;
+				}
+				// console.log(pages_container.pages);
+				pages_container.page_container_element.insertBefore(this.element, pages_container.pages[this.page_number+1].element);
+			}
 			this.old_content_height = this.content.getBoundingClientRect().height;
 			this.content_before_resize = this.content;
 
 			this.resize_observer = new ResizeObserver(() => {
 				// console.log("carrot: " + getCaretCharacterOffsetWithin(this.content));
 				// console.log("THing resized");
-				if (this.checkIfContentOverflow(this.content)){
+				// console.log(this);
+				// console.log(this.content.textContent);
+				if (this.checkIfContentOverflow(this.content)) {
 					let selection = getSelection();
 					// console.log(selection);
 					let selection_focus_node, selection_focus_offset;
@@ -846,10 +926,16 @@ class Page {
 					}
 					else if (overflows.length > 0) {
 						if (this.page_number+1 >= pages_container.pages.length) {
-							new Page(pages_container, "new");
+							new Page(pages_container, {"element": "new"});
+						}
+						else if (pages_container.pages[this.page_number+1].is_anchored) {
+							new Page(pages_container, {"page_number": this.page_number+1});
 						}
 						// let caret_parent_nodes = [...caret_parent.childNodes];
 						let elements_to_move = Pages.listToFragment(overflows);
+						// console.log(elements_to_move);
+						// console.log(this.element);
+						// console.log(pages_container.pages);
 						pages_container.pages[this.page_number+1].content.prepend(elements_to_move);
 						pages_container.pages[this.page_number+1].combineElements();
 
@@ -875,7 +961,11 @@ class Page {
 						// }
 					}
 				}
-				else if (this.content.getBoundingClientRect().height < this.old_content_height && this.page_number < pages_container.pages.length-1 && pages_container.pages[this.page_number+1].content.children.length > 0) {
+				else if (this.content.getBoundingClientRect().height < this.old_content_height && this.page_number < pages_container.pages.length-1 && pages_container.pages[this.page_number+1].content.children.length > 0 && !pages_container.pages[this.page_number+1].is_anchored && !this.marked_as_deleted) {
+					// console.log(this.page_number);
+					// console.log(this.content.innerHTML);
+					// console.log(pages_container.pages[this.page_number+1].content.innerHTML);
+					// console.log(this.content_before_resize.innerHTML);
 					let selection = getSelection();
 					// console.log(selection);
 					let selection_focus_node, selection_focus_offset;
@@ -894,6 +984,7 @@ class Page {
 					// available_space -= margin_penalty;
 
 					// this.content.append(Pages.listToFragment(pages_container.pages[this.page_number].findUnderflows(available_space)));
+					// console.log(`Pages+1 content: `
 					this.findUnderflows(pages_container.pages[this.page_number+1].content, this.content, {
 						"selection": selection,
 						"focus_node": selection_focus_node,
@@ -934,10 +1025,10 @@ class Page {
 					// console.log(selection_focus_node);
 					// console.log(selection_focus_offset);
 					if ((this.content.children[0] == selection_focus_node || this.content.children[0] == selection_focus_node.parentElement) && selection_focus_offset == 0 && this.page_number > 0) {
-						// console.log("Move cursor to end of previous page");
+						console.log("Move cursor to end of previous page");
 						pages_container.pages[this.page_number-1].content.focus();
 						Pages.setCaretPosition(selection, previous_page_last_node, new_caret_index);
-						pages_container.pages[pages_container.pages.length-1].deleteIfEmpty();
+						pages_container.pages[this.page_number].deleteIfEmpty();
 					}
 				}
 			});
@@ -1173,9 +1264,13 @@ class Page {
 
 	deleteIfEmpty() {
 		if (["", "\n"].indexOf(this.content.innerText) > -1) {
-			this.pages_container.pages[this.page_number-1].deleteIfEmpty();
+			// this.pages_container.pages[this.page_number-1].deleteIfEmpty();
+			// console.log(`page ${this.page_number} is empty`);
 			this.delete();
 		}
+		// else {
+		// 	console.log(`page ${this.page_number} is NOOOOT empty`);
+		// }
 	}
 
 	delete() {
@@ -1184,12 +1279,20 @@ class Page {
 		});
 		document.dispatchEvent(delete_event);
 		this.pages_container.page_container_element.removeChild(this.pages_container.pages[this.page_number].element);
-		if (this.page_number < this.pages_container.pages.length-1) {
-			for (let i = this.page_number+1; i < this.pages_container.pages.length; i++) {
-				this.pages_container.pages[i].page_number = i-1;
-			}
-		}
+		// console.log(...[this.pages_container.pages]);
+		// console.log("deleting page...");
+		// console.log(this);
 		this.pages_container.pages.splice(this.page_number, 1);
+		for (let i = this.page_number; i < this.pages_container.pages.length; i++) {
+			this.pages_container.pages[i].page_number--;
+		}
+		this.pages_container.page_modules
+			.filter(m => m.type == "page_number")
+			.forEach(m => {
+			this.pages_container.updatePageModule(m, this.page_number);
+		});
+		// console.log(...[this.pages_container.pages]);
+		this.marked_as_deleted = true;
 	}
 
 	checkIfContentOverflow(element) {

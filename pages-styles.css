@@ -54,18 +54,18 @@
 		box-sizing: border-box;
 		flex: 1 1 auto;
 		border: 2px solid transparent;
-	}
-	.main:focus-within {
-		border: 2px solid #33f;
-	}
+		&:focus-within {
+			border: 2px solid #33f;
+		}
 
-	.content {
-		display: flow-root;
-		padding: 0 10mm 0 10mm;
-		word-wrap: break-word;
-	}
-	.content:focus {
-		outline: 0px solid transparent;
+		>.content {
+			display: flow-root;
+			padding: 0 10mm 0 10mm;
+			word-wrap: break-word;
+		}
+		>.content:focus {
+			outline: 0px solid transparent;
+		}
 	}
 
 	.test-table {
@@ -85,7 +85,17 @@
 	
 	.content {
 		padding: 10mm;
-		word-break: break-all;
+		word-wrap: break-word;
+	}
+}
+
+.page-break {
+	border-top: 3px dotted #33f;
+	border-bottom: 3px dotted #33f;
+	font-family: sans;
+	text-align: center;
+	&::before {
+		content: "page break";
 	}
 }
 
