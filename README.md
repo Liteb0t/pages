@@ -20,6 +20,9 @@ Default values:
 	"page_modules": [],
 	"image_module_default_url": "https://fuze.page/images/fuze-min.png",
 	"zoom_enabled": true
+	"frame_defined_as_element": false,
+	"single_page_mode": false,
+	"minimum_zoom": 0.4
 }
 ```
 Example configuration from pages.html:
@@ -62,7 +65,33 @@ const pages_demo = new Pages("page-frame", {
 	"page_data_source": "within_frame"
 });
 ```
+## Events
+You can add event listeners for the following:
+`onnewpage`, `onpagecontentfocus`, `ondeletepage`
+
+## Miscellaneous functions
+Pages.`save()` \
+Downloads the pages into a stripped-down HTML file. Warning: not very tested.
+
+Pages.`toggleSinglePageMode()`|`enableSinglePageMode()`|`disableSinglePageMode()` \
+Switches between the default multiple-page mode, and the single-page mode with headers and footers hidden.
+
+`new Page(pages_container, config = {})` \
+Where `pages_container` is an instance of `Pages`.
+Default values for `config` are:
+```javascript
+{
+	"element": "new",
+	"page_number": -1,
+	"is_single_page": false,
+	"is_anchored": false
+}
+```
+
+Page.`delete()` \
+What do you expect?
+
 ## Notes
 - The zoom feature uses shift + mouse scroll. This overrides horizontal scrolling which is why you might want to disable it.
-- This is NOT a rich text editor, as that is outside the scope of this project. Rather, this is a starting point for developers to make their own WYSIWYG editors.
-- This will be the library used for a WYSIWYG editor I plan to create, JoditWithPages
+- This is NOT a rich text editor, as that is outside the scope of this project. Rather, this is a starting point for developers to make their own WYSIWYG editors
+- The last line of code is `// export default Pages`. You can uncomment this to use it as a module.
